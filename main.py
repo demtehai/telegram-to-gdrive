@@ -20,7 +20,8 @@ bot = Bot(token=BOT_TOKEN)
 dp = Dispatcher()
 
 # Чтение переменной окружения с ключом сервисного аккаунта
-credentials_info = json.loads(os.getenv("GOOGLE_CREDENTIALS"))
+google_credentials = os.getenv("GOOGLE_CREDENTIALS")  # Получаем строку из переменной окружения
+credentials_info = json.loads(google_credentials)  # Преобразуем строку обратно в объект JSON
 credentials = service_account.Credentials.from_service_account_info(credentials_info)
 
 # Google Drive сервис
