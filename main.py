@@ -1,6 +1,7 @@
 import os
 import logging
 import asyncio
+import json
 from aiogram import Bot, Dispatcher, F
 from aiogram.types import Message
 from google.oauth2 import service_account
@@ -18,16 +19,14 @@ GDRIVE_FOLDER = os.getenv("GDRIVE_FOLDER")
 bot = Bot(token=BOT_TOKEN)
 dp = Dispatcher()
 
-# Авторизация в Google Drive
-SCOPES = ["https://www.googleapis.com/auth/drive.file"]
-SERVICE_ACCOUNT_FILE = "service_account.json"
+# Чтение переменной окружения с ключом сервисного аккаунта
+credentials_info = json.loads(os.getenv("GOOGLE_CREDENTIALS"))
+credentials = service_account.Credentials.from_service_account_info(credentials_info)
 
-credentials = service_account.Credentials.from_service_account_file(
-    SERVICE_ACCOUNT_FILE, scopes=SCOPES
-)
+# Google Drive сервис
 drive_service = build("drive", "v3", credentials=credentials)
 
-# Функция загрузки файла
+# Функция загрузки файла на Google Drive
 def upload_to_gdrive(filename, file_path):
     file_metadata = {
         "name": filename,
@@ -54,7 +53,7 @@ async def handle_media(message: Message):
     # Скачивание
     await bot.download_file(file_info.file_path, destination=local_path)
 
-    # Загрузка в GDrive
+    # Загрузка в Google Drive
     link = upload_to_gdrive(file_name, local_path)
 
     # Удаление временного файла
