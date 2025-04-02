@@ -1,61 +1,71 @@
 import os
 import logging
-from aiogram import Bot, Dispatcher, types
+import asyncio
+from aiogram import Bot, Dispatcher, F
 from aiogram.types import Message
-from aiogram.utils import executor
-
 from google.oauth2 import service_account
 from googleapiclient.discovery import build
-from googleapiclient.http import MediaFileUpload
+from aiohttp import ClientSession
 
-# Логирование
+# Настройка логирования
 logging.basicConfig(level=logging.INFO)
 
-# Переменные окружения
+# Получение переменных окружения
 BOT_TOKEN = os.getenv("BOT_TOKEN")
 GDRIVE_FOLDER = os.getenv("GDRIVE_FOLDER")
 
-# Telegram
+# Настройка бота
 bot = Bot(token=BOT_TOKEN)
-dp = Dispatcher(bot)
+dp = Dispatcher()
 
-# Google Drive сервис
-SCOPES = ['https://www.googleapis.com/auth/drive.file']
-SERVICE_ACCOUNT_FILE = 'service_account.json'
+# Авторизация в Google Drive
+SCOPES = ["https://www.googleapis.com/auth/drive.file"]
+SERVICE_ACCOUNT_FILE = "service_account.json"
 
-creds = service_account.Credentials.from_service_account_file(
-    SERVICE_ACCOUNT_FILE, scopes=SCOPES)
-drive_service = build('drive', 'v3', credentials=creds)
+credentials = service_account.Credentials.from_service_account_file(
+    SERVICE_ACCOUNT_FILE, scopes=SCOPES
+)
+drive_service = build("drive", "v3", credentials=credentials)
 
-# Загрузка файла
-def upload_to_drive(filepath, filename):
+# Функция загрузки файла
+def upload_to_gdrive(filename, file_path):
     file_metadata = {
-        'name': filename,
-        'parents': [GDRIVE_FOLDER]
+        "name": filename,
+        "parents": [GDRIVE_FOLDER],
     }
-    media = MediaFileUpload(filepath, resumable=True)
-    uploaded_file = drive_service.files().create(
-        body=file_metadata, media_body=media, fields='id, webViewLink'
-    ).execute()
-    return uploaded_file.get('webViewLink')
+    media_body = open(file_path, "rb")
+    uploaded_file = (
+        drive_service.files()
+        .create(body=file_metadata, media_body=media_body, fields="id,webViewLink")
+        .execute()
+    )
+    return uploaded_file.get("webViewLink")
 
-@dp.message_handler(content_types=['photo', 'video'])
-async def handle_media(msg: Message):
-    file_id = msg.photo[-1].file_id if msg.photo else msg.video.file_id
-    tg_file = await bot.get_file(file_id)
-    file_path = tg_file.file_path
+# Обработчик медиа
+@dp.message(F.content_type.in_(['photo', 'video']))
+async def handle_media(message: Message):
+    file = message.photo[-1] if message.photo else message.video
+    file_info = await bot.get_file(file.file_id)
 
-    filename = f"{file_id}.jpg" if msg.photo else f"{file_id}.mp4"
-    local_path = f"temp/{filename}"
+    file_name = f"{file.file_id}.jpg" if message.photo else f"{file.file_id}.mp4"
+    local_path = f"temp/{file_name}"
     os.makedirs("temp", exist_ok=True)
 
-    await bot.download_file(file_path, destination=local_path)
+    # Скачивание
+    await bot.download_file(file_info.file_path, destination=local_path)
 
-    try:
-        link = upload_to_drive(local_path, filename)
-        await msg.reply(f"✅ Загружено в Google Drive:\n{link}")
-    finally:
-        os.remove(local_path)
+    # Загрузка в GDrive
+    link = upload_to_gdrive(file_name, local_path)
 
-if __name__ == '__main__':
-    executor.start_polling(dp, skip_updates=True)
+    # Удаление временного файла
+    os.remove(local_path)
+
+    # Ответ пользователю
+    await message.answer(f"✅ Загружено: {link}")
+
+# Старт бота
+async def main():
+    await dp.start_polling(bot)
+
+if __name__ == "__main__":
+    asyncio.run(main())
