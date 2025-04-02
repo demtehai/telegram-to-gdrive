@@ -24,27 +24,28 @@ def upload_to_gdrive(file_name, file_path):
         'name': file_name,
         'parents': [GDRIVE_FOLDER]
     }
-
     media = MediaFileUpload(file_path, resumable=True)
-
     uploaded_file = drive_service.files().create(
         body=file_metadata,
         media_body=media,
         fields='id'
     ).execute()
-
     return f"https://drive.google.com/file/d/{uploaded_file.get('id')}/view?usp=drive_link"
 
-@dp.message(lambda message: message.photo or message.video)
+@dp.message(lambda message: message.photo or message.video or message.video_note)
 async def handle_media(msg: types.Message):
     if msg.photo:
         file_id = msg.photo[-1].file_id
         file_info = await bot.get_file(file_id)
         file_name = f"{file_id}.jpg"
-    else:
+    elif msg.video:
         file_id = msg.video.file_id
         file_info = await bot.get_file(file_id)
         file_name = f"{file_id}.mp4"
+    elif msg.video_note:
+        file_id = msg.video_note.file_id
+        file_info = await bot.get_file(file_id)
+        file_name = f"{file_id}_story.mp4"
 
     file_path = file_info.file_path
     local_path = f"/tmp/{file_name}"
