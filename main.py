@@ -1,7 +1,8 @@
 import os
 import logging
 import json
-from aiogram import Bot, Dispatcher, types, executor
+import asyncio
+from aiogram import Bot, Dispatcher, types
 from google.oauth2 import service_account
 from googleapiclient.discovery import build
 from googleapiclient.http import MediaFileUpload
@@ -16,7 +17,7 @@ credentials = service_account.Credentials.from_service_account_info(GOOGLE_CREDE
 drive_service = build('drive', 'v3', credentials=credentials)
 
 bot = Bot(token=BOT_TOKEN)
-dp = Dispatcher(bot)
+dp = Dispatcher()
 
 def upload_to_gdrive(file_name, file_path):
     file_metadata = {
@@ -34,7 +35,7 @@ def upload_to_gdrive(file_name, file_path):
 
     return f"https://drive.google.com/file/d/{uploaded_file.get('id')}/view?usp=drive_link"
 
-@dp.message_handler(content_types=['photo', 'video'])
+@dp.message(lambda message: message.photo or message.video)
 async def handle_media(msg: types.Message):
     if msg.photo:
         file_id = msg.photo[-1].file_id
@@ -56,5 +57,8 @@ async def handle_media(msg: types.Message):
 
     await msg.reply(f"✅ Загружено в Google Drive: {link}")
 
+async def main():
+    await dp.start_polling(bot)
+
 if __name__ == '__main__':
-    executor.start_polling(dp, skip_updates=True)
+    asyncio.run(main())
